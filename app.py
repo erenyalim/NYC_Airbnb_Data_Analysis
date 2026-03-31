@@ -31,8 +31,7 @@ df_filtered = df[(df['neighbourhood_group'].isin(selected_borough)) &
 
 if role is None:
     st.title("🏙️ NYC Airbnb Open Data: General Dataset Information")
-    
-    st.markdown("---")
+    st.divider()    
     col_info_left, col_info_right = st.columns(2, gap="large")
     
     with col_info_left:
@@ -54,7 +53,7 @@ if role is None:
         """)
     st.divider()
 
-    st.subheader('Filtered ')
+    st.subheader('Filtered')
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Filtered Listings", f"{df_filtered.shape[0]:,}")
@@ -165,13 +164,11 @@ if role is None:
 
 else:
     st.title(f"Perspective : {role}")
-    st.markdown("---")
-
+    st.divider()
     tab_stats, tab_visual, tab_norm = st.tabs(["Statistical Analysis", "Graphical Analysis", "Data Normalization"])
 
     if "Investor" in role:
         analysis_cols = ['price', 'est_annual_revenue', 'availability_365', 'reviews_per_month']
-     
         st.divider()
         with tab_stats:
             st.subheader("Strategic ROI & Performance Indicators")
@@ -298,8 +295,140 @@ else:
                 st.plotly_chart(px.histogram(df_filtered, x='norm_rev', nbins=50, color_discrete_sequence=['#27ae60']), use_container_width=True)
 
     elif "Host" in role:
-        analysis_cols = ['price', 'availability_365', 'calculated_host_listings_count']
+        analysis_cols = ['price', 'availability_365', 'calculated_host_listings_count', 'number_of_reviews']
+        
+
+        with tab_stats:
+            st.subheader("🏠 Host Competition & Market Positioning")
+            kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+            kpi1.metric("Market Median Price", f"${df_filtered['price'].median():,.2f}")
+            kpi2.metric("Price Volatility (Std Dev)", f"${df_filtered['price'].std():,.2f}")
+            kpi3.metric("Avg Competitor Listings", f"{df_filtered['calculated_host_listings_count'].mean():.1f}")
+            kpi4.metric("Market Availability", f"{int(df_filtered['availability_365'].mean())} Days")
+            st.divider()
+
+            st.header("📈 Market Volatility & Stability Analysis")
+            st.write("Is there a 'standard' price in your area, or is the market flexible? High variance means more room for dynamic pricing.")
+            c1, c2 = st.columns([1, 1.2])
+            with c1:
+                st.markdown("#### 📊 Descriptive Statistics (Host Focus)")
+                host_stats = df_filtered[analysis_cols].agg(['mean', 'median', 'var', 'std']).T
+                st.dataframe(host_stats.style.format("{:,.2f}").background_gradient(cmap='Blues'), use_container_width=True)
+                st.info("💡 **Strategy:** If Price Variance is high, the market lacks a strict standard. You can set a premium price by highlighting unique home features.")
+            with c2:
+                st.markdown("#### 🤝 Trust vs. Price Correlation")
+                fig_corr = px.imshow(df_filtered[analysis_cols].corr(), text_auto=".2f", color_continuous_scale='RdBu_r', range_color=[-1,1])
+                st.plotly_chart(fig_corr, use_container_width=True)
+                st.success("🎯 **Insight:** A strong correlation between reviews and price suggests that 'social proof' allows for higher pricing power.")
+
+        with tab_visual:
+            st.header("🖼️ Competitive Intelligence & Visual Insights")
+            r1_1, r1_2 = st.columns(2)
+            with r1_1:
+                st.markdown("##### 1. Pricing Strategy (Box Plot)")
+                fig_box = px.box(df_filtered, x='room_type', y='price', color='room_type', points="outliers", template="plotly_dark")
+                fig_box.update_layout(margin=dict(t=30, b=0, l=0, r=0))
+                st.plotly_chart(fig_box, use_container_width=True)
+            with r1_2:
+                st.markdown("##### 2. Market Stability (Violin Plot)")
+                fig_violin = px.violin(df_filtered, x='neighbourhood_group', y='price', color='neighbourhood_group', box=True, template="plotly_dark")
+                fig_violin.update_layout(margin=dict(t=30, b=0, l=0, r=0))
+                st.plotly_chart(fig_violin, use_container_width=True)
+
+            st.divider()
+            r2_1, r2_2 = st.columns(2)
+            with r2_1:
+                st.markdown("##### 3. Inventory: Yearly Availability")
+                fig_hist = px.histogram(df_filtered, x='availability_365', nbins=30, color_discrete_sequence=['#3498db'], template="plotly_dark")
+                st.plotly_chart(fig_hist, use_container_width=True)
+            with r2_2:
+                st.markdown("##### 4. Competitor Professionalism")
+                df_filtered['host_type'] = df_filtered['calculated_host_listings_count'].apply(lambda x: 'Professional (Multi)' if x > 1 else 'Individual')
+                fig_pie = px.pie(df_filtered, names='host_type', hole=0.4, template="plotly_dark", color_discrete_sequence=['#e74c3c', '#2ecc71'])
+                st.plotly_chart(fig_pie, use_container_width=True)
+
+        with tab_norm:
+            st.header("⚖️ Competitive Pricing Normalization")
+            scaler = StandardScaler()
+            df_filtered['norm_price'] = scaler.fit_transform(df_filtered[['price']])
+            cn1, cn2 = st.columns(2)
+            with cn1:
+                st.plotly_chart(px.histogram(df_filtered, x='price', title="Raw Pricing", color_discrete_sequence=['#3498db']), use_container_width=True)
+            with cn2:
+                st.plotly_chart(px.histogram(df_filtered, x='norm_price', title="Standardized Price (Z-Score)", color_discrete_sequence=['#2980b9']), use_container_width=True)
         
     elif "Guest" in role:
-        analysis_cols = ['price', 'number_of_reviews', 'reviews_per_month']
+        analysis_cols = ['price', 'number_of_reviews', 'reviews_per_month', 'availability_365']
+        
 
+        with tab_stats:
+            gk1, gk2, gk3, gk4 = st.columns(4)
+            st.subheader("🧳 Guest Value & Trust Discovery")
+            gk1.metric("Budget Friendly District", df_filtered.groupby('neighbourhood_group')['price'].median().idxmin())
+            gk2.metric("Avg Nightly Spend", f"${df_filtered['price'].mean():,.2f}")
+            gk3.metric("Market Trust (Total Reviews)", f"{df_filtered['number_of_reviews'].sum():,}")
+            gk4.metric("Avg Reviews per Listing", f"{df_filtered['number_of_reviews'].mean():.1f}")
+            st.divider()
+            st.header("📈 Trust & Value Analysis")
+            st.write("Does a higher price guarantee a better experience? We use **Correlation** to see if guests favor expensive or budget listings.")
+            
+            c1, c2 = st.columns([1, 1.2])
+            with c1:
+                st.markdown("#### 📊 Descriptive Statistics (Guest View)")
+                guest_stats = df_filtered[analysis_cols].agg(['mean', 'median', 'std', 'max']).T
+                st.dataframe(guest_stats.style.format("{:,.2f}").background_gradient(cmap='Purples'), use_container_width=True)
+                st.info("💡 **Strategy:** A high 'Reviews per Month' average indicates a trending and highly active neighborhood.")
+            
+            with c2:
+                st.markdown("#### 🤝 Price vs. Popularity Correlation")
+                fig_corr = px.imshow(df_filtered[analysis_cols].corr(), text_auto=".2f", color_continuous_scale='Purples', range_color=[-1,1])
+                st.plotly_chart(fig_corr, use_container_width=True)
+                st.success("🎯 **Insight:** If Correlation is negative, guests prefer lower-priced options for better value.")
+
+        with tab_visual:
+            st.header("🖼️ Finding the Best 'Value for Money'")
+            
+            rv1, rv2 = st.columns(2)
+            with rv1:
+                st.markdown("##### 1. The 'Sweet Spot' (Price vs. Reviews)")
+                fig_fp = px.scatter(df_filtered.sample(min(1500, len(df_filtered))), 
+                                    x='price', y='number_of_reviews', color='neighbourhood_group',
+                                    size='reviews_per_month', hover_name='name', template="plotly_dark")
+                st.plotly_chart(fig_fp, use_container_width=True)
+                st.success("💎 **Pro-Tip:** High-review, low-price listings (Top-Left) are your best bet!")
+
+            with rv2:
+                st.markdown("##### 2. Most Popular Districts (Review Speed)")
+                df_pop = df_filtered.groupby('neighbourhood_group')['reviews_per_month'].mean().sort_values().reset_index()
+                fig_pop = px.bar(df_pop, x='neighbourhood_group', y='reviews_per_month', color='reviews_per_month', color_continuous_scale='Purples', template="plotly_dark")
+                st.plotly_chart(fig_pop, use_container_width=True)
+
+            st.divider()
+            
+            rv3, rv4 = st.columns(2)
+            with rv3:
+                st.markdown("##### 3. Price Ranges per Room Type")
+                fig_box = px.box(df_filtered, x='room_type', y='price', color='room_type', template="plotly_dark", points="outliers")
+                st.plotly_chart(fig_box, use_container_width=True)
+            with rv4:
+                st.markdown("##### 4. Review Density (Reliability)")
+                fig_hist = px.histogram(df_filtered, x='number_of_reviews', nbins=50, template="plotly_dark", color_discrete_sequence=['#9b59b6'])
+                st.plotly_chart(fig_hist, use_container_width=True)
+
+        with tab_norm:
+            st.header("⚖️ Fair Price Analysis (Normalization)")
+            st.write("Is this listing overpriced? We use **Z-Score** to show how far a price deviates from the district average.")
+            
+            scaler = StandardScaler()
+            df_filtered['norm_price'] = scaler.fit_transform(df_filtered[['price']])
+            
+            cn1, cn2 = st.columns(2)
+            with cn1:
+                st.write("**Raw Price Distribution**")
+                st.plotly_chart(px.histogram(df_filtered, x='price', nbins=50, color_discrete_sequence=['#8e44ad']), use_container_width=True)
+            with cn2:
+                st.write("**Z-Score Standardized Price**")
+                st.plotly_chart(px.histogram(df_filtered, x='norm_price', nbins=50, color_discrete_sequence=['#9b59b6']), use_container_width=True)
+            
+            st.info("💡 **Fairness Rule:** A Z-Score of 0 means market average. Avoid listings with Z > 2 unless they offer extreme luxury.")
+            
